@@ -1,5 +1,6 @@
 import { SubmitHandler, useForm } from 'react-hook-form';
 import { RiSaveFill, RiCloseFill } from 'react-icons/ri';
+import { useMutation } from 'react-query';
 
 import {
   Box,
@@ -12,12 +13,16 @@ import {
   Button,
   Icon,
 } from '@chakra-ui/react';
+import { useToast } from '@chakra-ui/toast';
 import { yupResolver } from '@hookform/resolvers/yup';
+import { useRouter } from 'next/router';
 import * as yup from 'yup';
 
 import { Input } from '../../../components/Form/Input';
 import { Header } from '../../../components/Header';
 import { Sidebar } from '../../../components/Sidebar';
+import { api } from '../../../services/api';
+import { queryClient } from '../../../services/queryClient';
 
 type CreateUserFormData = {
   name: string;
@@ -39,14 +44,40 @@ const schema = yup.object().shape({
 });
 
 export default function UserList() {
+  const toast = useToast();
+  const router = useRouter();
+  const createUser = useMutation(
+    async (user: CreateUserFormData) => {
+      const response = await api.post('users', {
+        user: {
+          ...user,
+          created_at: new Date(),
+        },
+      });
+      return response.data.user;
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries('users');
+      },
+    }
+  );
   const { register, handleSubmit, formState } = useForm({
     resolver: yupResolver(schema),
   });
   const handleCreateUser: SubmitHandler<CreateUserFormData> = async (
     values
   ) => {
-    await new Promise((resolver) => setTimeout(resolver, 2000));
-    return values;
+    try {
+      await createUser.mutateAsync(values);
+      toast({
+        description: 'Usúario criado com sucesso!',
+        status: 'success',
+      });
+      router.push('/users');
+    } catch (e) {
+      toast({ description: 'Erro ao criar usuário!', status: 'error' });
+    }
   };
   return (
     <Box>
@@ -119,6 +150,7 @@ export default function UserList() {
                 colorScheme="pink"
                 size="sm"
                 leftIcon={<Icon as={RiSaveFill} />}
+                isLoading={createUser.isLoading}
               >
                 Salvar
               </Button>
